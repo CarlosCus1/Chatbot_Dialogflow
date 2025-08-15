@@ -74,6 +74,24 @@ Asegúrate de tener instalado lo siguiente:
      - *Action and parameters*: Asegúrate de que haya un parámetro llamado `producto`.
      - *Fulfillment*: Activa la opción "Enable webhook call for this intent".
 
+   ### Nuevas Funcionalidades
+
+   - **`ConsultarOfertas`**:
+     - *Descripción*: Pregunta por los productos que están actualmente en oferta.
+     - *Training Phrases*: "¿Qué productos están en oferta?", "Muéstrame las ofertas".
+     - *Fulfillment*: Requiere webhook.
+
+   - **`ConsultarProximosArribos`**:
+     - *Descripción*: Consulta qué productos nuevos están por llegar al inventario.
+     - *Training Phrases*: "¿Qué productos llegarán pronto?", "Próximos arribos".
+     - *Fulfillment*: Requiere webhook.
+
+   - **`ConsultarColores`**:
+     - *Descripción*: Pregunta por los colores disponibles de un producto específico.
+     - *Training Phrases*: "¿De qué colores tienes las `laptops`?", "¿Qué colores de `mouse` hay disponibles?".
+     - *Action and parameters*: Requiere un parámetro `producto`.
+     - *Fulfillment*: Requiere webhook.
+
 4. **Configurar el Webhook:**
    - En el menú de la izquierda, ve a "Fulfillment".
    - Activa la opción "Webhook".

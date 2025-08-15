@@ -61,6 +61,39 @@
       "responses": [
         "Aquí tienes los detalles del producto:"
       ]
+    },
+    {
+      "displayName": "ConsultarOfertas",
+      "patterns": [
+        "¿Qué productos están en oferta?",
+        "Muéstrame las ofertas",
+        "¿Hay descuentos?"
+      ],
+      "responses": [
+        "Claro, buscando productos en oferta..."
+      ]
+    },
+    {
+      "displayName": "ConsultarProximosArribos",
+      "patterns": [
+        "¿Qué productos llegarán pronto?",
+        "¿Cuándo llegan nuevos productos?",
+        "Próximos arribos"
+      ],
+      "responses": [
+        "Consultando los próximos arribos..."
+      ]
+    },
+    {
+      "displayName": "ConsultarColores",
+      "patterns": [
+        "¿De qué colores tienes las laptops?",
+        "¿Qué colores de mouse hay disponibles?",
+        "Colores de los monitores"
+      ],
+      "responses": [
+        "Revisando los colores disponibles..."
+      ]
     }
   ]
 }
