@@ -17,10 +17,7 @@ flask_app = Flask(__name__)
 # Permite CORS solo desde el dominio de tu app de React.
 # Es más seguro que permitir todos los orígenes.
 # Asegúrate de que esta URL coincida con el frontend de tu aplicación.
-CORS(flask_app, resources={r"/api/*": {
-    "origins": ["http://localhost:3000", "https://stock-manager-app-v2.web.app"],
-    "supports_credentials": True
-}})
+CORS(flask_app, origins=["http://localhost:3000", "https://stock-manager-app-v2.web.app"], supports_credentials=True)
 
 # --- 3. Inicialización de Firebase ---
 # Variable global para la instancia de la base de datos de Firestore.
@@ -272,28 +269,23 @@ def _get_product_details_text(product_data: dict | None) -> str:
     if not product_data:
         return _get_random_response("PRODUCT_NOT_FOUND")
 
-    # Usar .get() con un valor por defecto para evitar KeyError
-    codigo = product_data.get('codigo', 'N/A')
-    descripcion = product_data.get('nombre', 'N/A')
-    linea = product_data.get('linea', 'N/A')
-    master = product_data.get('master', 'N/A')
-    precio = product_data.get('precio', 'N/A')
-    cod_ean = product_data.get('cod_ean', 'N/A')
-    peso = product_data.get('can_kg_um', 'N/A')
-
+    # Usar .get() con un valor por defecto ('N/A' o 'No disponible') para evitar errores
+    # si un campo no existe en la base de datos.
     response_text = (
-        f"¡Aquí tienes los detalles de {descripcion} (Código: {codigo})!\n"
-        f"Línea: {linea}\n"
-        f"Unidades Master: {master}\n"
-        f"Precio: {precio}\n"
-        f"Código EAN: {cod_ean}\n"
-        f"Peso: {peso} kg"
+        f"¡Aquí tienes los detalles de {product_data.get('nombre', 'producto')}!\n"
+        f"Código: {product_data.get('codigo', 'N/A')}\n"
+        f"Línea: {product_data.get('linea', 'N/A')}\n"
+        f"Unidades Master: {product_data.get('master', 'N/A')}\n"
+        f"Precio: {product_data.get('precio', 'N/A')}\n"
+        f"Código EAN: {product_data.get('cod_ean', 'N/A')}\n"
+        f"Peso: {product_data.get('can_kg_um', 'N/A')} kg"
     )
     return response_text
 
 def _get_stock_by_warehouse_text(product_data: dict | None) -> str:
     """
     Formatea la información de stock por almacén para la respuesta de Dialogflow.
+    Es más robusto al verificar la existencia y tipo de 'almacenes'.
     """
     if not product_data:
         return _get_random_response("PRODUCT_NOT_FOUND")
@@ -302,21 +294,86 @@ def _get_stock_by_warehouse_text(product_data: dict | None) -> str:
     descripcion = product_data.get('nombre', 'N/A')
     
     stock_info = []
-    # Asegúrate de que 'almacenes' sea una lista antes de iterar
+    # Comprobación robusta: Asegúrate de que 'almacenes' exista y sea una lista antes de iterar.
     if isinstance(product_data.get('almacenes'), list):
         for almacen in product_data['almacenes']:
-            almacen_nombre = almacen.get('nombre', 'N/A')
-            disponible = int(almacen.get('disponible', 0))
-            if disponible > 0: # Mostrar si hay stock
-                stock_info.append(f"   - {almacen_nombre}: {disponible} unidades")
+            # Asegurarse de que el almacén es un diccionario y tiene los campos necesarios.
+            if isinstance(almacen, dict) and 'nombre' in almacen and 'disponible' in almacen:
+                disponible = int(almacen.get('disponible', 0))
+                if disponible > 0: # Mostrar solo si hay stock
+                    stock_info.append(f"   - {almacen['nombre']}: {disponible} unidades")
     
-    response_text = f"Este es el stock para {descripcion} (Código: {codigo}):\n"
     if stock_info:
-        response_text += "\n".join(stock_info)
+        response_text = f"Este es el stock para {descripcion} (Código: {codigo}):\n" + "\n".join(stock_info)
     else:
-        response_text += "Actualmente no hay stock disponible en ningún almacén."
+        response_text = f"Actualmente no hay stock disponible en ningún almacén para {descripcion} (Código: {codigo})."
 
     return response_text
+
+def _handle_get_product_details(parameters: dict) -> dict:
+    """Maneja la lógica para la intención 'GetProductDetails'."""
+    product_codes = _get_product_codes_from_params(parameters)
+    if not product_codes:
+        return {"fulfillmentText": _get_random_response("PROVIDE_CODE")}
+    
+    all_product_details = [_get_product_details_text(buscar_producto(code)) for code in product_codes]
+    return {"fulfillmentText": "\n".join(all_product_details)}
+
+def _handle_get_product_stock(parameters: dict) -> dict:
+    """Maneja la lógica para la intención 'GetProductStock'."""
+    product_codes = _get_product_codes_from_params(parameters)
+    if not product_codes:
+        return {"fulfillmentText": _get_random_response("PROVIDE_CODE")}
+
+    all_stock_info = [_get_stock_by_warehouse_text(buscar_producto(code)) for code in product_codes]
+    return {"fulfillmentText": "\n".join(all_stock_info)}
+
+def _handle_search_product_by_name(parameters: dict) -> dict:
+    """Maneja la lógica para la intención 'SearchProductByName'."""
+    product_name_query = parameters.get('product_name', '')
+    if not product_name_query:
+        return {"fulfillmentText": _get_random_response("PROVIDE_NAME")}
+
+    found_products = buscar_productos_por_nombre_flexible(product_name_query)
+    if not found_products:
+        return {"fulfillmentText": f"No encontré productos que coincidan con '{product_name_query}'. ¿Puedes intentar con otro nombre o un código?"}
+    
+    if len(found_products) == 1:
+        return {"fulfillmentText": "¡Claro! Encontré este producto:\n" + _get_product_details_text(found_products[0])}
+    
+    # Respuesta enriquecida con botones de sugerencia
+    product_list_text = "\n".join([f"- {p.get('nombre', 'N/A')} (Código: {p.get('codigo', 'N/A')})" for p in found_products])
+    title = f"Encontré {len(found_products)} productos que coinciden. ¿A cuál te refieres?\n{product_list_text}"
+    suggestions = [f"Detalles {p.get('codigo')}" for p in found_products]
+    
+    return {
+        "fulfillmentMessages": [
+            {"text": {"text": [title]}},
+            {
+                "quickReplies": {
+                    "title": "Puedes pedirme más detalles:",
+                    "quickReplies": suggestions[:12] # Límite de Dialogflow
+                }
+            }
+        ]
+    }
+
+def _handle_get_full_stock_summary(parameters: dict) -> dict:
+    """Maneja la lógica para la intención 'GetFullStockSummary'."""
+    return {"fulfillmentText": "Puedes consultar el stock completo en: https://kutt.it/Stock_Lineas_Hoy"}
+
+def _handle_send_catalog(parameters: dict) -> dict:
+    """Maneja la lógica para la intención 'SendCatalog'."""
+    return {"fulfillmentText": "¡Claro! Puedes ver nuestro catálogo completo aquí: https://tu-empresa.com/catalogo.pdf"}
+
+def _get_product_codes_from_params(parameters: dict) -> list:
+    """Extrae y normaliza los códigos de producto de los parámetros de Dialogflow."""
+    product_codes = parameters.get('product_code')
+    if isinstance(product_codes, str):
+        return [product_codes]
+    if isinstance(product_codes, list):
+        return product_codes
+    return [] # Devuelve una lista vacía si no es str ni list
 
 @flask_app.route('/', methods=['POST'])
 def dialogflow_webhook():
@@ -325,84 +382,33 @@ def dialogflow_webhook():
     Procesa las intenciones y parámetros para generar la respuesta adecuada.
     """
     request_json = request.get_json(silent=True)
+    if not request_json:
+        logging.warning("Solicitud vacía o no es JSON.")
+        return jsonify({"fulfillmentText": _get_random_response("GENERIC_ERROR")}), 400
+
     logging.info(f"Solicitud de Dialogflow recibida: {request_json}")
-    # sys.stdout.write(f"Dialogflow Request: {request_json}\n") # Solo para depuración extrema en algunos entornos
 
-    intent_display_name = request_json.get('queryResult', {}).get('intent', {}).get('displayName')
-    parameters = request_json.get('queryResult', {}).get('parameters', {})
-    fulfillment_text = _get_random_response("GENERIC_ERROR")
+    intent_handlers = {
+        'GetProductDetails': _handle_get_product_details,
+        'GetProductStock': _handle_get_product_stock,
+        'SearchProductByName': _handle_search_product_by_name,
+        'GetFullStockSummary': _handle_get_full_stock_summary,
+        'SendCatalog': _handle_send_catalog,
+    }
 
-    # Asegura que product_codes sea siempre una lista para facilitar la iteración
-    product_codes = parameters.get('product_code')
-    if isinstance(product_codes, str):
-        product_codes = [product_codes]
-    elif not isinstance(product_codes, list):
-        product_codes = [] # Si no es ni str ni list, inicializar como lista vacía
+    query_result = request_json.get('queryResult', {})
+    intent_name = query_result.get('intent', {}).get('displayName')
+    parameters = query_result.get('parameters', {})
 
-    # Nuevo parámetro para búsqueda por nombre
-    product_name_query = parameters.get('product_name', '')
+    handler = intent_handlers.get(intent_name)
 
-    if intent_display_name == 'GetProductDetails':
-        if product_codes:
-            all_product_details = []
-            for code in product_codes:
-                product_data = buscar_producto(code)
-                all_product_details.append(_get_product_details_text(product_data))
-            fulfillment_text = "\n".join(all_product_details)
-        else:
-            fulfillment_text = _get_random_response("PROVIDE_CODE")
-    elif intent_display_name == 'GetProductStock':
-        if product_codes:
-            all_stock_info = []
-            for code in product_codes:
-                product_data = buscar_producto(code)
-                all_stock_info.append(_get_stock_by_warehouse_text(product_data))
-            fulfillment_text = "\n".join(all_stock_info)
-        else:
-            fulfillment_text = _get_random_response("PROVIDE_CODE")
-    
-    elif intent_display_name == 'SearchProductByName':
-        if product_name_query:
-            found_products = buscar_productos_por_nombre_flexible(product_name_query)
-            if not found_products:
-                fulfillment_text = f"No encontré productos que coincidan con '{product_name_query}'. ¿Puedes intentar con otro nombre o un código?"
-            elif len(found_products) == 1:
-                fulfillment_text = "¡Claro! Encontré este producto:\n" + _get_product_details_text(found_products[0])
-            else:
-                # --- Respuesta Enriquecida con Botones de Sugerencia ---
-                product_list_text = "\n".join([f"- {p.get('nombre', 'N/A')} (Código: {p.get('codigo', 'N/A')})" for p in found_products])
-                title = f"Encontré {len(found_products)} productos que coinciden. ¿A cuál te refieres?\n{product_list_text}"
-                
-                # Crear sugerencias rápidas (quick replies) con los códigos
-                suggestions = [f"Detalles {p.get('codigo')}" for p in found_products]
-                
-                # Construir la respuesta JSON para Dialogflow
-                response_payload = {
-                    "fulfillmentMessages": [
-                        {"text": {"text": [title]}},
-                        {
-                            "quickReplies": {
-                                "title": "Puedes pedirme más detalles:",
-                                "quickReplies": suggestions[:12] # Dialogflow tiene un límite de 13 sugerencias
-                            }
-                        }
-                    ]
-                }
-                return jsonify(response_payload)
-        else:
-            fulfillment_text = _get_random_response("PROVIDE_NAME")
-
-    elif intent_display_name == 'GetFullStockSummary':
-        fulfillment_text = "Puedes consultar el stock completo en: https://kutt.it/Stock_Lineas_Hoy"
-    
-    elif intent_display_name == 'SendCatalog':
-        # Reemplaza la URL de abajo con el enlace real a tu catálogo
-        fulfillment_text = "¡Claro! Puedes ver nuestro catálogo completo aquí: https://tu-empresa.com/catalogo.pdf"
+    if handler:
+        response_payload = handler(parameters)
     else:
-        logging.warning(f"Intención de Dialogflow no manejada: {intent_display_name}")
-        fulfillment_text = _get_random_response("UNHANDLED_INTENT")
+        logging.warning(f"Intención de Dialogflow no manejada: {intent_name}")
+        response_payload = {"fulfillmentText": _get_random_response("UNHANDLED_INTENT")}
     
-    return jsonify({"fulfillmentText": fulfillment_text})
+    return jsonify(response_payload)
 
 # --- 7. Entry Point de Cloud Functions ---
 
@@ -412,42 +418,15 @@ def api(req: https_fn.Request) -> https_fn.Response:
     Punto de entrada principal para Google Cloud Functions/Run.
     Envuelve la aplicación Flask para ser ejecutada como una función HTTP.
     """
-    # Manejar las solicitudes OPTIONS (preflight de CORS)
-    if req.method == 'OPTIONS':
-        headers = {
-            'Access-Control-Allow-Origin': '*', # Se puede especificar el origen si es fijo
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization', # Añadir 'Authorization' si usas tokens
-            'Access-Control-Max-Age': '3600' # Caché por 1 hora
-        }
-        return make_response("", 204, headers)
-
-    # El entorno de prueba de Flask se utiliza para simular una solicitud HTTP.
-    with flask_app.test_request_context(
-        method=req.method,
-        url=req.url,
-        headers=req.headers,
-        data=req.get_data(),
-        query_string=req.query_string
-    ):
-        try:
-            # Despachar la solicitud a la aplicación Flask
-            flask_response = flask_app.dispatch_request()
-            
-            # Crear una respuesta de Firebase Functions a partir de la respuesta de Flask
-            response = make_response(flask_response.get_data())
-            response.status_code = flask_response.status_code
-            for key, value in flask_response.headers:
-                response.headers[key] = value
-            
-            # El encabezado Access-Control-Allow-Origin es manejado automáticamente
-            # por la extensión Flask-CORS basada en la configuración anterior.
-            # No es necesario sobreescribirlo aquí.
-            return response
-        except Exception as e:
-            logging.error(f"Error al procesar la solicitud Flask: {e}", exc_info=True)
-            # Asegúrate de que la respuesta de error también incluya el encabezado CORS.
-            return make_response(f"Error interno del servidor: {e}", 500, {'Access-Control-Allow-Origin': req.headers.get("Origin", "*")})
+    # La forma más simple y robusta de servir una app WSGI (como Flask)
+    # en una Cloud Function de 2da Gen es pasar la solicitud directamente.
+    # Flask y Flask-CORS se encargarán del enrutamiento, la lógica y las cabeceras.
+    try:
+        return flask_app(req.environ, lambda status, headers: None)
+    except Exception as e:
+        logging.error(f"Error no controlado en la aplicación Flask: {e}", exc_info=True)
+        # Devuelve una respuesta de error genérica.
+        return https_fn.Response("Error interno del servidor.", status=500)
 
 # --- 8. Punto de Entrada para Desarrollo Local ---
 if __name__ == '__main__':

@@ -1,0 +1,25 @@
+{
+  "functions": {
+    "source": "dialogflow-webhook",
+    "runtime": "python313",
+    "entryPoint": "app"
+  },
+  "hosting": {
+    "public": "stock_manager_web/.web/public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "function": "api"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

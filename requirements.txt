@@ -1,4 +1,12 @@
+# Flask y extensiones
 Flask
 Flask-Cors
+gunicorn
+
+# Firebase
 firebase-admin
 firebase-functions
+
+# Para pruebas (instalar con: pip install -r requirements.txt)
+pytest
+pytest-mock

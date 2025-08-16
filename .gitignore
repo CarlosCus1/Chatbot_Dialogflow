@@ -1,26 +1,22 @@
-# Entornos virtuales de Python
-# Ignora la carpeta que contiene todas las dependencias instaladas.
-/venv/
-*.pyenv
+# Entornos Virtuales
 .env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# Archivos de credenciales y secretos
-# ¡MUY IMPORTANTE! Evita subir tus claves de servicio de Firebase o cualquier otro secreto.
-# Es una buena práctica ignorar todos los archivos .json en la raíz para evitar
-# subir accidentalmente una clave. Si tienes un JSON que SÍ quieres subir,
-# puedes añadir una excepción con: !nombre-del-archivo.json
-*.json
-
-# También es común usar archivos .env para variables de entorno locales.
-.env*
-
-# Archivos de caché y compilados de Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
 
-# Archivos de distribución y empaquetado
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
 build/
 develop-eggs/
 dist/
@@ -33,10 +29,69 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
+.installed.cfg
 *.egg
+MANIFEST
 
-# Archivos de configuración de IDEs y editores
+# PyInstaller
+*.manifest
+*.spec
+
+# Logs de instaladores
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Reportes de tests y cobertura
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+temp/
+.firebase/logs/
+
+# Traducciones
+*.mo
+*.pot
+
+# Cosas de Django:
+*.log
+local_settings.py
+db.sqlite3
+
+# Cosas de Flask:
+instance/
+.webassets-cache
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Configuraciones de IDEs
 .vscode/
 .idea/
-*.sublime-*
+.spyderproject
+.spyderworkspace
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre
+.pyre/
+
+# Secretos y Credenciales
+# ¡MUY IMPORTANTE! Nunca subas archivos de credenciales a tu repositorio.
+# Estos archivos contienen claves secretas que dan acceso a tus servicios de Google Cloud.
+serviceAccountKey.json
+credentials.json
+*-firebase-adminsdk-*.json

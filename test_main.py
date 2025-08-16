@@ -275,4 +275,4 @@ def test_dialogflow_webhook_unhandled_intent(client):
     response = client.post('/', json=dialogflow_request)
     response_data = json.loads(response.data)
     assert response.status_code == 200
-    assert 'No estoy seguro de cómo manejar esa solicitud' in response_data['fulfillmentText']
+    assert 'No estoy seguro de cómo ayudarte con eso' in response_data['fulfillmentText']
