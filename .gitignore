@@ -1,0 +1,42 @@
+# Entornos virtuales de Python
+# Ignora la carpeta que contiene todas las dependencias instaladas.
+/venv/
+*.pyenv
+.env
+
+# Archivos de credenciales y secretos
+# ¡MUY IMPORTANTE! Evita subir tus claves de servicio de Firebase o cualquier otro secreto.
+# Es una buena práctica ignorar todos los archivos .json en la raíz para evitar
+# subir accidentalmente una clave. Si tienes un JSON que SÍ quieres subir,
+# puedes añadir una excepción con: !nombre-del-archivo.json
+*.json
+
+# También es común usar archivos .env para variables de entorno locales.
+.env*
+
+# Archivos de caché y compilados de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Archivos de distribución y empaquetado
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+*.egg
+
+# Archivos de configuración de IDEs y editores
+.vscode/
+.idea/
+*.sublime-*

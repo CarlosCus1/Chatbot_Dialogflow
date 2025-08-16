@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "stock-manager-app-v2",
+    "stock-manager-app-v2": "stock-manager-app-v2"
+  },
+  "targets": {},
+  "etags": {}
+}
