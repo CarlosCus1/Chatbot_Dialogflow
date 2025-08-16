@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 from firebase_functions import https_fn
 import logging
+import random
 import sys
 
 # --- 1. Configuración de Logs ---
@@ -111,23 +112,45 @@ def buscar_productos_por_linea(linea_nombre: str) -> list:
 
 def buscar_productos_por_nombre_flexible(nombre_producto: str) -> list:
     """
-    Busca productos utilizando un campo de 'keywords' en Firestore.
-    Esta es una estrategia de búsqueda eficiente y recomendada para Firestore.
+    Busca productos de forma flexible siguiendo una estrategia de precisión:
+    1. Intenta buscar una coincidencia exacta por código de producto.
+    2. Si no, intenta buscar una coincidencia exacta por código EAN.
+    3. Como último recurso, busca por palabras clave ('keywords') en el nombre.
     """
     firestore_db = _get_firestore_db()
     if not firestore_db:
         return []
 
+    # --- 1. Búsqueda por Código de Producto Exacto ---
+    # Asumimos que los códigos pueden estar en mayúsculas
+    producto_por_codigo = buscar_producto(nombre_producto.upper())
+    if producto_por_codigo:
+        logging.info(f"Búsqueda flexible: Encontrado producto por código exacto '{nombre_producto}'.")
+        return [producto_por_codigo]
+
+    # --- 2. Búsqueda por Código EAN Exacto ---
+    try:
+        docs_ean = firestore_db.collection('productos').where('cod_ean', '==', nombre_producto).limit(1).stream()
+        productos_por_ean = []
+        for doc in docs_ean:
+            producto_data = doc.to_dict()
+            producto_data['codigo'] = doc.id
+            productos_por_ean.append(producto_data)
+        if productos_por_ean:
+            logging.info(f"Búsqueda flexible: Encontrado producto por EAN exacto '{nombre_producto}'.")
+            return productos_por_ean
+    except Exception as e:
+        logging.error(f"Error al buscar por EAN '{nombre_producto}': {e}", exc_info=True)
+
+    # --- 3. Búsqueda por Palabras Clave (Fallback) ---
+    logging.info(f"Búsqueda flexible: No se encontró por código/EAN, buscando por nombre '{nombre_producto}'.")
     # Normalizar y dividir la consulta de búsqueda en palabras clave
     search_keywords = [kw.lower() for kw in nombre_producto.split() if kw]
     if not search_keywords:
         return []
 
     try:
-        # Empezar con una consulta que busca el primer keyword.
-        # Esto reduce el conjunto de documentos a escanear.
         query = firestore_db.collection('productos').where('keywords', 'array_contains', search_keywords[0])
-        
         docs = query.limit(20).stream() # Limitar para no sobrecargar y dar una respuesta rápida
 
         productos_encontrados = []
@@ -208,6 +231,38 @@ def get_all_products_endpoint():
     products = get_all_products_from_firestore()
     return jsonify(products) # Retorna una lista vacía si no hay productos o hay un error
 
+# --- 6. Plantillas y Generadores de Respuestas ---
+# Centralizar las respuestas aquí hace que el bot sea más fácil de mantener y personalizar.
+
+RESPONSE_TEMPLATES = {
+    "PRODUCT_NOT_FOUND": [
+        "Lo siento, no pude encontrar un producto con ese código. ¿Podrías verificarlo?",
+        "Mmm, no encontré ese producto. ¿Quizás el código es incorrecto? También puedes buscar por nombre.",
+        "No hay resultados para ese código. Intenta con otro o busca por nombre."
+    ],
+    "PROVIDE_CODE": [
+        "Por favor, indícame el código del producto que te interesa.",
+        "Claro, ¿cuál es el código del producto que buscas?",
+    ],
+    "PROVIDE_NAME": [
+        "Por favor, dime el nombre del producto que buscas.",
+        "Ok, ¿qué producto te gustaría encontrar?",
+    ],
+    "GENERIC_ERROR": [
+        "Lo siento, algo salió mal y no pude procesar tu solicitud. Inténtalo de nuevo.",
+        "Uups, tuve un problema técnico. ¿Podemos intentarlo de nuevo?",
+    ],
+    "UNHANDLED_INTENT": [
+        "No estoy seguro de cómo ayudarte con eso. Puedo buscar productos por código o nombre, y darte su stock.",
+        "No entendí muy bien. Recuerda que puedo darte detalles y stock de productos si me das su código o nombre.",
+    ]
+}
+
+def _get_random_response(key: str) -> str:
+    """Obtiene una respuesta aleatoria de las plantillas."""
+    # Si la clave no existe, devuelve una respuesta genérica para evitar errores.
+    return random.choice(RESPONSE_TEMPLATES.get(key, ["No sé qué decir a eso."]))
+
 # --- 6. Webhook de Dialogflow ---
 
 def _get_product_details_text(product_data: dict | None) -> str:
@@ -215,7 +270,7 @@ def _get_product_details_text(product_data: dict | None) -> str:
     Formatea los detalles de un producto para la respuesta de Dialogflow.
     """
     if not product_data:
-        return "Producto no encontrado."
+        return _get_random_response("PRODUCT_NOT_FOUND")
 
     # Usar .get() con un valor por defecto para evitar KeyError
     codigo = product_data.get('codigo', 'N/A')
@@ -227,12 +282,12 @@ def _get_product_details_text(product_data: dict | None) -> str:
     peso = product_data.get('can_kg_um', 'N/A')
 
     response_text = (
-        f"\nProducto: {descripcion} (Código: {codigo})\n"
+        f"¡Aquí tienes los detalles de {descripcion} (Código: {codigo})!\n"
         f"Línea: {linea}\n"
         f"Unidades Master: {master}\n"
         f"Precio: {precio}\n"
         f"Código EAN: {cod_ean}\n"
-        f"Peso: {peso} kg\n"
+        f"Peso: {peso} kg"
     )
     return response_text
 
@@ -241,7 +296,7 @@ def _get_stock_by_warehouse_text(product_data: dict | None) -> str:
     Formatea la información de stock por almacén para la respuesta de Dialogflow.
     """
     if not product_data:
-        return "Producto no encontrado."
+        return _get_random_response("PRODUCT_NOT_FOUND")
 
     codigo = product_data.get('codigo', 'N/A')
     descripcion = product_data.get('nombre', 'N/A')
@@ -251,15 +306,15 @@ def _get_stock_by_warehouse_text(product_data: dict | None) -> str:
     if isinstance(product_data.get('almacenes'), list):
         for almacen in product_data['almacenes']:
             almacen_nombre = almacen.get('nombre', 'N/A')
-            disponible = almacen.get('disponible', 0)
-            if disponible > 1: # Solo mostrar si hay más de 1 unidad disponible
+            disponible = int(almacen.get('disponible', 0))
+            if disponible > 0: # Mostrar si hay stock
                 stock_info.append(f"   - {almacen_nombre}: {disponible} unidades")
     
-    response_text = f"Stock para {descripcion} (Código: {codigo}):\n"
+    response_text = f"Este es el stock para {descripcion} (Código: {codigo}):\n"
     if stock_info:
         response_text += "\n".join(stock_info)
     else:
-        response_text += "No hay stock disponible (>1 unidad) en ningún almacén."
+        response_text += "Actualmente no hay stock disponible en ningún almacén."
 
     return response_text
 
@@ -275,7 +330,7 @@ def dialogflow_webhook():
 
     intent_display_name = request_json.get('queryResult', {}).get('intent', {}).get('displayName')
     parameters = request_json.get('queryResult', {}).get('parameters', {})
-    fulfillment_text = "Lo siento, no pude procesar tu solicitud. Por favor, intenta de nuevo."
+    fulfillment_text = _get_random_response("GENERIC_ERROR")
 
     # Asegura que product_codes sea siempre una lista para facilitar la iteración
     product_codes = parameters.get('product_code')
@@ -295,7 +350,7 @@ def dialogflow_webhook():
                 all_product_details.append(_get_product_details_text(product_data))
             fulfillment_text = "\n".join(all_product_details)
         else:
-            fulfillment_text = "Por favor, proporciona el código de un producto para obtener sus detalles."
+            fulfillment_text = _get_random_response("PROVIDE_CODE")
     elif intent_display_name == 'GetProductStock':
         if product_codes:
             all_stock_info = []
@@ -304,7 +359,7 @@ def dialogflow_webhook():
                 all_stock_info.append(_get_stock_by_warehouse_text(product_data))
             fulfillment_text = "\n".join(all_stock_info)
         else:
-            fulfillment_text = "Por favor, proporciona el código de un producto para consultar su stock."
+            fulfillment_text = _get_random_response("PROVIDE_CODE")
     
     elif intent_display_name == 'SearchProductByName':
         if product_name_query:
@@ -312,18 +367,40 @@ def dialogflow_webhook():
             if not found_products:
                 fulfillment_text = f"No encontré productos que coincidan con '{product_name_query}'. ¿Puedes intentar con otro nombre o un código?"
             elif len(found_products) == 1:
-                fulfillment_text = "Encontré este producto:\n" + _get_product_details_text(found_products[0])
+                fulfillment_text = "¡Claro! Encontré este producto:\n" + _get_product_details_text(found_products[0])
             else:
-                product_list_text = "\n".join([f"- {p.get('nombre')} (Código: {p.get('codigo')})" for p in found_products])
-                fulfillment_text = f"Encontré varios productos. ¿A cuál te refieres?\n{product_list_text}"
+                # --- Respuesta Enriquecida con Botones de Sugerencia ---
+                product_list_text = "\n".join([f"- {p.get('nombre', 'N/A')} (Código: {p.get('codigo', 'N/A')})" for p in found_products])
+                title = f"Encontré {len(found_products)} productos que coinciden. ¿A cuál te refieres?\n{product_list_text}"
+                
+                # Crear sugerencias rápidas (quick replies) con los códigos
+                suggestions = [f"Detalles {p.get('codigo')}" for p in found_products]
+                
+                # Construir la respuesta JSON para Dialogflow
+                response_payload = {
+                    "fulfillmentMessages": [
+                        {"text": {"text": [title]}},
+                        {
+                            "quickReplies": {
+                                "title": "Puedes pedirme más detalles:",
+                                "quickReplies": suggestions[:12] # Dialogflow tiene un límite de 13 sugerencias
+                            }
+                        }
+                    ]
+                }
+                return jsonify(response_payload)
         else:
-            fulfillment_text = "Por favor, dime el nombre del producto que buscas."
+            fulfillment_text = _get_random_response("PROVIDE_NAME")
 
     elif intent_display_name == 'GetFullStockSummary':
         fulfillment_text = "Puedes consultar el stock completo en: https://kutt.it/Stock_Lineas_Hoy"
+    
+    elif intent_display_name == 'SendCatalog':
+        # Reemplaza la URL de abajo con el enlace real a tu catálogo
+        fulfillment_text = "¡Claro! Puedes ver nuestro catálogo completo aquí: https://tu-empresa.com/catalogo.pdf"
     else:
         logging.warning(f"Intención de Dialogflow no manejada: {intent_display_name}")
-        fulfillment_text = "No estoy seguro de cómo manejar esa solicitud. ¿Puedes reformularla?"
+        fulfillment_text = _get_random_response("UNHANDLED_INTENT")
     
     return jsonify({"fulfillmentText": fulfillment_text})
 
