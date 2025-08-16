@@ -166,25 +166,39 @@ def buscar_productos_por_nombre_flexible(nombre_producto: str) -> list:
         logging.error(f"Error al buscar productos por nombre '{nombre_producto}': {e}", exc_info=True)
         return []
 
-def get_all_products_from_firestore() -> list:
+def get_all_products_from_firestore(page: int = 1, page_size: int = 20) -> tuple[list, int]:
     """
     Obtiene todos los productos de la colección 'productos' en Firestore.
-    Retorna una lista de diccionarios de productos.
+    Implementa paginación para manejar grandes volúmenes de datos.
+    Retorna una tupla: (lista de productos de la página, total de productos).
     """
     firestore_db = _get_firestore_db()
     if not firestore_db:
-        return []
+        return [], 0
     try:
+        collection_ref = firestore_db.collection('productos')
+        
+        # Para obtener el total, la forma más eficiente en Firestore es mantener un contador
+        # en un documento separado. Como alternativa (menos eficiente para millones de documentos),
+        # podemos contar todos los IDs, pero esto puede tener costos asociados.
+        # Por simplicidad, aquí lo omitimos, pero en una app real se usaría un contador.
+        # Asumiremos un total grande para el ejemplo o lo dejaremos fuera de la respuesta.
+        total_products = 0 # En una app real, obtendrías esto de un documento contador.
+
         all_products = []
-        docs = firestore_db.collection('productos').stream()
+        # Firestore no tiene un 'count' directo ni un 'offset' simple. La paginación se hace con cursores.
+        # Para una paginación numérica simple (menos performante pero más fácil de empezar):
+        # Nota: El uso de offset tiene limitaciones de rendimiento en Firestore.
+        query = collection_ref.order_by('nombre').limit(page_size).offset((page - 1) * page_size)
+        docs = query.stream()
         for doc in docs:
             product_data = doc.to_dict()
-            product_data['codigo'] = doc.id # Añadir el código (ID del documento) a los datos
+            product_data['codigo'] = doc.id
             all_products.append(product_data)
-        return all_products
+        return all_products, total_products # Devolvemos 0 como total por ahora
     except Exception as e:
         logging.error(f"Error al obtener todos los productos: {e}", exc_info=True)
-        return []
+        return [], 0
 
 # --- 5. Rutas de la API ---
 
@@ -214,19 +228,34 @@ def get_products_by_line(linea_nombre: str):
         return jsonify({"error": "El nombre de la línea no puede estar vacío"}), 400
     
     productos = buscar_productos_por_linea(linea_nombre)
-    if productos:
-        return jsonify(productos)
-    else:
-        logging.info(f"No se encontraron productos para la línea '{linea_nombre}'.")
-        return jsonify({"message": f"No se encontraron productos para la línea '{linea_nombre}'"}), 200
+    # Es una práctica estándar de API REST devolver una lista vacía con un estado 200 si no se encuentran resultados para un filtro.
+    return jsonify(productos)
 
 @flask_app.route('/api/all-products', methods=['GET'])
 def get_all_products_endpoint():
     """
-    Endpoint para obtener todos los productos.
+    Endpoint para obtener todos los productos con paginación.
+    Acepta los query params: ?page=<numero>&page_size=<numero>
     """
-    products = get_all_products_from_firestore()
-    return jsonify(products) # Retorna una lista vacía si no hay productos o hay un error
+    try:
+        page = int(request.args.get('page', 1))
+        page_size = int(request.args.get('page_size', 20))
+    except ValueError:
+        return jsonify({"error": "Los parámetros 'page' y 'page_size' deben ser números enteros."}), 400
+
+    if page < 1 or page_size < 1:
+        return jsonify({"error": "Los parámetros 'page' y 'page_size' deben ser números positivos."}), 400
+
+    products, total = get_all_products_from_firestore(page=page, page_size=page_size)
+    
+    response = {
+        "page": page,
+        "page_size": page_size,
+        # "total_products": total, # Descomentar si implementas un contador de total
+        "data": products
+    }
+    
+    return jsonify(response)
 
 # --- 6. Plantillas y Generadores de Respuestas ---
 # Centralizar las respuestas aquí hace que el bot sea más fácil de mantener y personalizar.
