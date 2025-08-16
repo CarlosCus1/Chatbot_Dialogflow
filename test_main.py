@@ -125,6 +125,20 @@ def test_buscar_producto_encontrado(mocker):
     # Verifica que el mock fue llamado correctamente
     mock_db.collection.return_value.document.assert_called_with('P001')
     
+def test_buscar_productos_por_linea_con_alias(mock_firestore_db):
+    """
+    Prueba que la búsqueda por línea maneje correctamente los alias (ej. 'sensoriales').
+    """
+    from main import buscar_productos_por_linea
+    
+    # Actuación: Llama a la función con un alias
+    buscar_productos_por_linea('sensoriales')
+
+    # Aserción: Verifica que la consulta a Firestore se hizo con el nombre canónico
+    mock_firestore_db.collection.return_value.where.assert_called_with(
+        'linea', '==', 'manualidades'
+    )
+    
 def test_buscar_producto_no_encontrado(mocker, mock_firestore_db):
     """
     Prueba la función 'buscar_producto' cuando el producto NO se encuentra.
@@ -138,26 +152,70 @@ def test_buscar_producto_no_encontrado(mocker, mock_firestore_db):
 
 # --- 2. Pruebas de Integración para Endpoints de la API ---
 
-def test_get_product_endpoint(client, mock_product_found):
+def test_get_product_endpoint(client, mock_firestore_db):
     """
     Prueba el endpoint /api/producto/<codigo> cuando el producto existe.
+    Esta es una prueba de integración más realista que mockea la capa de DB.
     """
+    # Preparación: Configura el mock de la base de datos para que devuelva un producto.
+    mock_doc = MagicMock()
+    mock_doc.exists = True
+    mock_doc.id = 'P001'
+    mock_doc.to_dict.return_value = {'nombre': 'Producto de Prueba', 'linea': 'test'}
+    mock_firestore_db.collection.return_value.document.return_value.get.return_value = mock_doc
+
+    # Actuación
     response = client.get('/api/producto/P001')
     response_data = json.loads(response.data)
 
+    # Aserción
     assert response.status_code == 200
     assert response_data['codigo'] == 'P001'
     assert response_data['nombre'] == 'Producto de Prueba'
 
-def test_get_product_endpoint_not_found(client, mock_product_not_found):
+def test_get_product_endpoint_not_found(client, mock_firestore_db):
     """
     Prueba el endpoint /api/producto/<codigo> cuando el producto no se encuentra.
     """
-    response = client.get('/api/producto/P999')
+    mock_doc = MagicMock(exists=False)
+    mock_firestore_db.collection.return_value.document.return_value.get.return_value = mock_doc
 
-    # Aserción
+    response = client.get('/api/producto/P999')
     assert response.status_code == 404
     assert b'no encontrado' in response.data
+
+def test_get_products_by_line_found(client, mock_firestore_db):
+    """Prueba el endpoint /api/productos_por_linea/<linea> cuando se encuentran productos."""
+    # Preparación
+    mock_doc = MagicMock()
+    mock_doc.id = 'P005'
+    mock_doc.to_dict.return_value = {'nombre': 'Producto de Línea', 'linea': 'testline'}
+    mock_firestore_db.collection.return_value.where.return_value.stream.return_value = [mock_doc]
+
+    # Actuación
+    response = client.get('/api/productos_por_linea/testline')
+    response_data = json.loads(response.data)
+
+    # Aserción
+    assert response.status_code == 200
+    assert len(response_data) == 1
+    assert response_data[0]['nombre'] == 'Producto de Línea'
+
+def test_get_products_by_line_not_found(client, mock_firestore_db):
+    """
+    Prueba el endpoint /api/productos_por_linea/<linea> cuando no se encuentran productos.
+    Debe devolver una lista vacía y un estado 200.
+    """
+    # Preparación: La DB no devuelve documentos.
+    mock_firestore_db.collection.return_value.where.return_value.stream.return_value = []
+
+    # Actuación
+    response = client.get('/api/productos_por_linea/linea_inexistente')
+    response_data = json.loads(response.data)
+
+    # Aserción
+    assert response.status_code == 200
+    assert response_data == []
 
 def test_get_all_products_paginated(client, mocker):
     """

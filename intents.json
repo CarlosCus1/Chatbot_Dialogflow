@@ -1,0 +1,99 @@
+{
+  "intents": [
+    {
+      "displayName": "saludo",
+      "patterns": [
+        "Hola",
+        "¿Cómo estás?",
+        "¿Hay alguien ahí?",
+        "Hey",
+        "Buen día"
+      ],
+      "responses": [
+        "¡Hola! Soy tu asistente de inventario. ¿En qué puedo ayudarte?",
+        "¡Buen día! Listo para ayudarte con tus consultas de inventario."
+      ]
+    },
+    {
+      "displayName": "despedida",
+      "patterns": [
+        "Adiós",
+        "Hasta luego",
+        "Nos vemos",
+        "Chao"
+      ],
+      "responses": [
+        "¡Hasta luego! Que tengas un buen día.",
+        "Adiós. Si necesitas algo más, no dudes in preguntar."
+      ]
+    },
+    {
+      "displayName": "agradecimiento",
+      "patterns": [
+        "Gracias",
+        "Muchas gracias",
+        "Te lo agradezco"
+      ],
+      "responses": [
+        "¡De nada! Estoy para ayudarte.",
+        "No hay de qué. ¿Necesitas algo más?"
+      ]
+    },
+    {
+      "displayName": "consultar_stock",
+      "patterns": [
+        "¿Cuánto stock tenemos del producto?",
+        "¿Cuál es el inventario de las laptops?",
+        "Verificar el stock de los teclados",
+        "¿Cuántos mouse tenemos disponibles?"
+      ],
+      "responses": [
+        "Consultando el stock del producto..."
+      ]
+    },
+    {
+      "displayName": "detalles_producto",
+      "patterns": [
+        "Dame los detalles de las laptops",
+        "¿Qué información tienes sobre los monitores?",
+        "Muéstrame los detalles de los mouse"
+      ],
+      "responses": [
+        "Aquí tienes los detalles del producto:"
+      ]
+    },
+    {
+      "displayName": "ConsultarOfertas",
+      "patterns": [
+        "¿Qué productos están en oferta?",
+        "Muéstrame las ofertas",
+        "¿Hay descuentos?"
+      ],
+      "responses": [
+        "Claro, buscando productos en oferta..."
+      ]
+    },
+    {
+      "displayName": "ConsultarProximosArribos",
+      "patterns": [
+        "¿Qué productos llegarán pronto?",
+        "¿Cuándo llegan nuevos productos?",
+        "Próximos arribos"
+      ],
+      "responses": [
+        "Consultando los próximos arribos..."
+      ]
+    },
+    {
+      "displayName": "ConsultarColores",
+      "patterns": [
+        "¿De qué colores tienes las laptops?",
+        "¿Qué colores de mouse hay disponibles?",
+        "Colores de los monitores"
+      ],
+      "responses": [
+        "Revisando los colores disponibles..."
+      ]
+    }
+  ]
+}

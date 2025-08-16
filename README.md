@@ -81,35 +81,25 @@ Gracias al bloque `if __name__ == '__main__':` añadido en `main.py`, puedes eje
 
 ```bash
 python main.py
-```
 
-La aplicación estará disponible en `http://127.0.0.1:5000`.
 
-## Endpoints de la API
+La aplicación estará disponible en http://127.0.0.1:5000.
 
-| Método | Ruta                                       | Descripción                                       |
-| :----- | :----------------------------------------- | :------------------------------------------------ |
-| `GET`  | `/api/producto/<codigo>`                   | Obtiene los detalles de un producto por su código. |
-| `GET`  | `/api/productos_por_linea/<linea_nombre>`  | Obtiene productos filtrados por una línea.        |
-| `GET`  | `/api/all-products`                        | Obtiene un listado de todos los productos.        |
-| `POST` | `/`                                        | Webhook para recibir y procesar peticiones de Dialogflow. |
-
----
-
-## Estructura del Proyecto
-
-```
+Endpoints de la API
+Método	Ruta	Descripción
+GET	/api/producto/<codigo>	Obtiene los detalles de un producto por su código.
+GET	/api/productos_por_linea/<linea_nombre>	Obtiene productos filtrados por una línea.
+GET	/api/all-products	Obtiene un listado de todos los productos.
+POST	/	Webhook para recibir y procesar peticiones de Dialogflow.
+Estructura del Proyecto
+plaintext
 ├── .gitignore          # Archivos y carpetas a ignorar por Git.
 ├── main.py             # Lógica principal de la aplicación Flask, API y webhook.
 ├── requirements.txt    # Dependencias de Python para el proyecto.
 └── venv/               # Carpeta del entorno virtual (ignorada por Git).
-```
+Despliegue
+El punto de entrada api(req) está diseñado para ser desplegado como una Google Cloud Function.
 
-## Despliegue
-
-El punto de entrada `api(req)` está diseñado para ser desplegado como una Google Cloud Function.
-
-1.  Asegúrate de tener el Google Cloud SDK instalado y configurado.
-2.  Utiliza el comando `gcloud functions deploy` para desplegar la función, especificando `api` como el punto de entrada.
-
+Asegúrate de tener el Google Cloud SDK instalado y configurado.
+Utiliza el comando gcloud functions deploy para desplegar la función, especificando api como el punto de entrada.
 Para más detalles, consulta la documentación oficial de Google Cloud Functions.

@@ -47,15 +47,19 @@ def initialize_firebase_once():
 
 # --- 4. Funciones Auxiliares para Interacción con Firestore ---
 
+# Mapeo de alias de líneas a su nombre canónico en la base de datos.
+LINE_ALIASES = {
+    'sensoriales': 'manualidades'
+}
+
 def _get_firestore_db():
     """
     Retorna la instancia de Firestore. Asegura que Firebase esté inicializado.
     """
+    # Si db es None, se intenta inicializar. Si la inicialización falla,
+    # la función `initialize_firebase_once` levantará una excepción RuntimeError.
     if db is None:
         initialize_firebase_once()
-    if db is None: # Si la inicialización falló, aún podría ser None
-        logging.error("La instancia de Firestore no está disponible.")
-        return None
     return db
 
 def buscar_producto(codigo: str) -> dict | None:
@@ -90,9 +94,8 @@ def buscar_productos_por_linea(linea_nombre: str) -> list:
         return []
 
     # Normalizar el nombre de la línea para la búsqueda.
-    search_linea = linea_nombre.lower()
-    if search_linea == 'sensoriales':
-        search_linea = 'manualidades'
+    normalized_linea = linea_nombre.lower()
+    search_linea = LINE_ALIASES.get(normalized_linea, normalized_linea)
 
     try:
         productos = []
